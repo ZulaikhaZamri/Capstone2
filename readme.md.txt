@@ -1,0 +1,198 @@
+https://github.com/ZulaikhaZamri/Capstone2.git
+The source of the data :https://www.kaggle.com/datasets/saurabhshahane/ecommerce-textclassification
+
+Project Title:Automated Product Categorization for E-commerce Platforms: A Machine Learning Approach
+
+Objectives:Create a precise and dependable machine learning model for automating the categorization of products.
+Minimize the need for manual and retrospective categorization efforts by implementing an automated solution.
+Enhance efficiency and cost-effectiveness for businesses by eliminating the requirement for manual categorization.
+
+Problem Statement: 
+1.Insufficient or unstructured labeled data: Obtaining a large and accurately labeled dataset for training the model can be challenging. The quality and quantity of labeled data directly impact the performance of the model.
+
+2.Computational resources and time constraints: Training and deploying machine learning models can require significant computational resources and time. Optimizing the model's performance while considering resource limitations is a challenge.
+
+3.Model interpretability: Understanding and explaining how the model makes categorization decisions can be difficult, especially with complex deep learning models. Ensuring interpretability and transparency in the model's predictions is important for building trust and confidence in its results.
+
+Some features that could be implement:
+1.Text preprocessing: Implement techniques such as tokenization, stop word removal, and stemming/lemmatization to preprocess the product descriptions and remove noise or irrelevant information.
+
+2.Feature extraction: Utilize techniques like bag-of-words, TF-IDF (Term Frequency-Inverse Document Frequency), or word embeddings (e.g., Word2Vec, GloVe) to convert the preprocessed text into numerical features that can be used by the machine learning model.
+
+3. Model selection: Explore different machine learning algorithms such as Naive Bayes, Support Vector Machines (SVM), Random Forests, or deep learning models like Convolutional Neural Networks (CNNs) or Transformer-based models (e.g., BERT) to determine the most suitable approach for product categorization.
+
+Procedure install and run the project:
+#1.  Import packages
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import os
+
+PATH = os.getcwd()
+CSV_PATH = os.path.join(PATH, '/content/sample_data/ecommerceDataset.csv')
+df = pd.read_csv(CSV_PATH)
+
+#2. Define some hyperparameters
+vocab_size = 5000
+embedding_dim = 64
+max_length = 200
+trunc_type = 'post'
+padding_type = 'post'
+oov_tok = '<OOV>'
+training_portion = 0.8
+
+#3. Data inspection
+print(df.info())
+print("-"*20)
+print(df.describe())
+print("-"*20)
+print(df.isna().sum())
+print("-"*20)
+print(df.duplicated().sum())
+
+#assigning the columns name
+column_names = ['label','text']
+df.columns = column_names
+
+df.head()
+
+#4. Data cleaning
+df.drop_duplicates()
+print(df.info())
+df.dropna(inplace=True)
+
+#5. Split into features and labels
+features = df['label'].values
+label = df['text'].values
+
+from sklearn.preprocessing import LabelEncoder
+label_encoder = LabelEncoder()
+label_processed = label_encoder.fit_transform(label)
+
+#6. Perform train test split
+from sklearn.model_selection import train_test_split
+X_train,X_test,y_train,y_test = train_test_split(features,label_processed,train_size=training_portion,random_state=12345)
+
+#7. Perform tokenization
+from tensorflow import keras
+tokenizer = keras.preprocessing.text.Tokenizer(num_words=vocab_size,split=" ",oov_token=oov_tok)
+tokenizer.fit_on_texts(X_train)
+word_index = tokenizer.word_index
+print(dict(list(word_index.items())[0:10]))
+
+X_train_tokens = tokenizer.texts_to_sequences(X_train)
+X_test_tokens = tokenizer.texts_to_sequences(X_test)
+
+X_train_padded = keras.preprocessing.sequence.pad_sequences(X_train_tokens,maxlen=(max_length))
+X_test_padded = keras.preprocessing.sequence.pad_sequences(X_test_tokens,maxlen=(max_length))
+
+#9. Model development
+from tensorflow import keras
+
+"""
+We are going to include the word embedding function as a layer within the model
+"""
+#(A) Create the sequential model
+model = keras.Sequential()
+#(B) Create the input layer, in this case, it can be the embedding layer
+model.add(keras.layers.Embedding(vocab_size,embedding_dim))
+#(B) Create the bidirectional LSTM layer
+model.add(keras.layers.Bidirectional(keras.layers.LSTM(embedding_dim)))
+#(C) Classification layers
+model.add(keras.layers.Dense(embedding_dim,activation='relu'))
+model.add(keras.layers.Dense(len(np.unique(y_train)),activation='softmax'))
+
+model.summary()
+
+#Create a TensorBoard callback object for the usage of TensorBoard
+import tensorflow as tf
+import datetime
+from tensorflow.keras import callbacks
+from tensorflow.keras.callbacks import TensorBoard
+base_log_path = r"tensorboard_logs\capstone_assignment_2"
+log_path = os.path.join(base_log_path,datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+tb = callbacks.TensorBoard(log_path)
+
+import numpy as np
+from sklearn.metrics import f1_score
+
+from tensorflow.keras.callbacks import TensorBoard
+tb = callbacks.TensorBoard(log_path)
+TensorBoard_callbacks= TensorBoard(log_dir='./logs')
+
+import numpy as np
+
+# Convert y_train to a numpy array if it's not already
+y_train = np.array(y_train)
+
+# Find the indices of label values outside the valid range
+invalid_indices = np.where((y_train < 0) | (y_train >= 24635))[0]
+
+# Replace the invalid label values with the maximum valid value
+max_valid_label = 24634
+y_train[invalid_indices] = max_valid_label
+
+# Verify the correction
+invalid_label_count = np.sum((y_train < 0) | (y_train >= 24635))
+print("Number of invalid label values remaining:", invalid_label_count)
+
+model.compile(optimizer='adam',loss='sparse_categorical_crossentropy',metrics=['accuracy'])
+
+history = model.fit(X_train_padded, y_train, validation_data=(X_test_padded, y_test), epochs=5, batch_size=64, callbacks=[tb])
+
+# Make predictions on the test set
+y_pred = model.predict(X_test_padded)
+y_pred_labels = np.argmax(y_pred, axis=1)
+
+# Calculate the F1 score
+f1 = f1_score(y_test, y_pred_labels, average='weighted')
+
+# Print the F1 score
+print("F1 Score:", f1)
+
+print(history.history.keys())
+
+#Plot accuracy graphs
+plt.figure()
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.legend(["Train accuracy","Test accuracy"])
+plt.show()
+
+test_string = ['Company A on the verge of bankruptcy after a fire accident','Artificial intelligence might replace many jobs in the world']
+test_string_tokens = tokenizer.texts_to_sequences(test_string)
+test_string_padded = keras.preprocessing.sequence.pad_sequences(test_string_tokens,maxlen=(max_length))
+y_pred = np.argmax(model.predict(test_string_padded),axis=1)
+
+label_map = ['Books','Clothing & Accessories','Electronics','Household']
+predicted_sentiment = [label_map[i] for i in y_pred]
+
+PATH = os.getcwd()
+print(PATH)
+
+#Model save path
+model_save_path = os.path.join(PATH,"saved_models")
+keras.models.save_model(model,model_save_path)
+
+#Check if the model can be loaded
+model_loaded = keras.models.load_model(model_save_path)
+
+# Create the folder if it doesn't exist
+os.makedirs(model_save_path, exist_ok=True)
+
+# Save the model in .h5 format
+model_path = os.path.join(model_save_path, 'model.h5')
+model.save(model_path)
+
+#tokenizer save path
+import pickle
+
+tokenizer_save_path = os.path.join(PATH,"tokenizer.pkl")
+with open(tokenizer_save_path,'wb') as f:
+    pickle.dump(tokenizer,f)
+
+
+#Check if the tokenizer object can be loaded
+with open(tokenizer_save_path,'rb') as f:
+    tokenizer_loaded = pickle.load(f)
